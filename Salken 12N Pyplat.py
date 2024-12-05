@@ -1,12 +1,17 @@
-import pygame, sys, os
+import pygame
+import sys
+import os
+import random
 
-WIDTH, HEIGHT, GRAVITY, JUMP_STRENGTH, FPS = 800, 600, 0.5, 10, 60
+WIDTH, HEIGHT, GRAVITY, JUMP_STRENGTH, FPS = 1000, 1000, 0.5, 10, 60
 PLAYER_SIZE, OBSTACLE_SIZE, BORDER_THICKNESS = (32, 32), (80, 10), 10
 DECELERATION, ACCELERATION, MAX_VELOCITY = 0.5, 1, 5
+NUM_OBSTACLES = 5
 
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 clock = pygame.time.Clock()
+font = pygame.font.Font(None, 36)
 
 def load_animation_frames(folder_name):
     frames = []
@@ -40,7 +45,7 @@ class Player:
         self.frames_per_animation = 10
         self.space_held = False
 
-    def update(self, keys, obstacles, ground):
+    def update(self, keys, obstacles, ground, target):
         self.acceleration_x = 0
         if keys[pygame.K_LEFT]:
             self.acceleration_x = -ACCELERATION
@@ -76,6 +81,10 @@ class Player:
             self.current_frame = (self.current_frame + 1) % len(self.animations[self.current_animation])
             self.frame_counter = 0
 
+        if self.rect.colliderect(target.rect):
+            return True
+        return False
+
     def update_animation(self):
         if self.jumping:
             if self.velocity_y > 0:
@@ -108,7 +117,7 @@ class Player:
                 elif self.velocity_y < 0:
                     self.rect.top = obs.rect.bottom
                     self.velocity_y = 0
-        if self.rect.colliderect(ground.rect):
+        if self.rect.colliderect( ground.rect):
             self.rect.bottom = ground.rect.top
             self.velocity_y = 0
             self.on_ground = True
@@ -132,17 +141,43 @@ class Ground:
     def __init__(self, x, y, width, height):
         self.rect = pygame.Rect(x, y, width, height)
 
+class Target:
+    def __init__(self, x, y):
+        self.rect = pygame.Rect(x, y, 40, 40)
+
+class Level:
+    def __init__(self, obstacles, ground, target):
+        self.obstacles = obstacles
+        self.ground = ground
+        self.target = target
+
+def generate_random_level():
+    obstacles = []
+    for _ in range(NUM_OBSTACLES):
+        x = random.randint(0, WIDTH - OBSTACLE_SIZE[0])
+        y = random.randint(HEIGHT - 200, HEIGHT - OBSTACLE_SIZE[1])
+        obstacles.append(Obstacle(x, y))
+    ground = Ground(0, HEIGHT - 50, WIDTH, 50)
+    target_x = random.randint(0, WIDTH - 40)
+    target_y = random.randint(HEIGHT - 200, HEIGHT - 100)
+    target = Target(target_x, target_y)
+    return Level(obstacles, ground, target)
+
 def main():
     player = Player()
-    obstacles = [Obstacle(300, HEIGHT - 150), Obstacle(500, HEIGHT - 300), Obstacle(200, HEIGHT - 400)]
-    ground = Ground(0, HEIGHT - 50, WIDTH, 50)
+    current_level = generate_random_level()
+    score = 0
 
     while True:
         keys = pygame.key.get_pressed()
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: pygame.quit(); sys.exit()
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
 
-        player.update(keys, obstacles, ground)
+        if player.update(keys, current_level.obstacles, current_level.ground, current_level.target):
+            score += 1
+            current_level = generate_random_level()
 
         screen.fill((255, 255, 255))
         pygame.draw.rect(screen, (0, 0, 0), (0, 0, WIDTH, BORDER_THICKNESS))
@@ -151,11 +186,16 @@ def main():
         pygame.draw.rect(screen, (0, 0, 0), (WIDTH - BORDER_THICKNESS, 0, BORDER_THICKNESS, HEIGHT))
 
         player.draw(screen)
-        for obs in obstacles: pygame.draw.rect(screen, (255, 0, 0), obs.rect)
-        pygame.draw.rect(screen, (0, 255, 0), ground.rect)
+        for obs in current_level.obstacles:
+            pygame.draw.rect(screen, (255, 0, 0), obs.rect)
+        pygame.draw.rect(screen, (0, 255, 0), current_level.ground.rect)
+        pygame.draw.rect(screen, (0, 0, 255), current_level.target.rect)
+
+        score_text = font.render(f'Score: {score}', True, (0, 0, 0))
+        screen.blit(score_text, (10, 10))
 
         pygame.display.flip()
         clock.tick(FPS)
 
 if __name__ == "__main__":
-    main()
+    main()  
